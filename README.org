@@ -1,0 +1,41 @@
+* =voice_vault=
+
+voice_vault enables you to record and archive all your meetings and
+conversations with ease. Later, search through them with lightning
+speed using full-text search.
+
+=voice_vault= is a Ruby program that captures audio from the default
+input and output sources using [[https://ffmpeg.org/][FFmpeg]] and then transcribes it to text
+using [[https://github.com/ggerganov/whisper.cpp][whisper.cpp]]. Both the audio (mp3) and transcription will be
+archived in sub-folders with this =YYYY-MM-DD_HH-MM-SS= schema.
+
+** Installation
+
+-  Clone the repository
+-  Configure the program by editing the config.yml file in the =~/.config/voice_vault/= directory.
+-  Make the script executable: chmod +x voice_vault.rb
+
+** Usage
+
+Simply run the script: =./voice_vault.rb=
+
+The script will capture audio from the default input and output
+sources, transcribe it to text, encode it to MP3, and save it to an
+archive folder. The folder name will be in the format
+
+#+begin_example
+~/Dropbox/recordings/ find . | head -n 4
+.
+./2023-04-19_19-00-55
+./2023-04-19_19-00-55/transcription.txt
+./2023-04-19_19-00-55/recording.mp3
+#+end_example
+
+
+** Configuration
+
+The =config.yml= file contains the following settings:
+
+- =whisper_path=: the path to the directory containing whisper.cpp
+- =whisper_model=: the name of the model to use for speech recognition
+- =archive_folder=: the path to the base directory where the MP3 and text files will be saved
