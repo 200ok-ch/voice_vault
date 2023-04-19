@@ -3,6 +3,9 @@
 
 require 'open3'
 require 'date'
+require 'yaml'
+
+@config = YAML.load_file("#{ENV['HOME']}/.config/voice_vault/config.yml")
 
 def get_sources(sources)
   input_source = ''
@@ -39,8 +42,9 @@ def capture_audio(wav_file, input_source, monitor_source)
   end
 end
 
-def transcode_to_text(wav_file)
-  command = "/home/munen/src/whisper.cpp/main --language auto --model /home/munen/src/whisper.cpp/models/ggml-small.bin -t 8 --file #{wav_file}"
+def transcribe_to_text(wav_file)
+  puts "Transcribe audio to text...\n"
+  command = "#{@config['whisper_path']}/main --language auto --model #{@config['whisper_path']}/models/ggml-#{@config['whisper_model']}.bin -t 8 --file #{wav_file}"
   transcribed_text, _, _ = Open3.capture3(command)
   return transcribed_text
 end
@@ -63,8 +67,8 @@ sources = `pactl list short sources`
 input_source, monitor_source = get_sources(sources)
 wav_file = `mktemp --dry-run --suffix=.wav`.strip
 capture_audio(wav_file, input_source, monitor_source)
-transcribed_text = transcode_to_text(wav_file)
+transcribed_text = transcribe_to_text(wav_file)
 mp3_file = encode_to_mp3(wav_file)
-folder = "/tmp/#{DateTime.now.strftime('%Y-%m-%d_%H-%M-%S')}"
+folder = "#{@config['archive_folder']}/#{DateTime.now.strftime('%Y-%m-%d_%H-%M-%S')}"
 save_files(folder, mp3_file, wav_file, transcribed_text)
 puts "Recording and transcription: #{folder}"
