@@ -1,6 +1,6 @@
-* =voice_vault=
+* voice_vault
 
-voice_vault enables you to record and archive all your meetings and
+=voice_vault= enables you to record and archive all your meetings and
 conversations with ease. Later, search through them with lightning
 speed using full-text search.
 
