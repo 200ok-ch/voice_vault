@@ -38,4 +38,4 @@ The =config.yml= file contains the following settings:
 
 - =whisper_path=: the path to the directory containing whisper.cpp
 - =whisper_model=: the name of the model to use for speech recognition
-- =archive_folder=: the path to the base directory where the MP3 and text files will be saved
+- =archive_path=: the path to the base directory where the MP3 and text files will be saved
