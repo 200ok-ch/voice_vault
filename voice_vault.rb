@@ -34,7 +34,7 @@ end
 
 def transcribe_to_text(wav_file)
   puts "Transcribe audio to text...\n"
-  command = "#{@config['whisper_path']}/main --language auto --model #{@config['whisper_path']}/models/ggml-#{@config['whisper_model']}.bin -t 8 --file #{wav_file}"
+  command = "#{@config['whisper_path']}/main --language auto --model #{@config['whisper_path']}/models/ggml-#{@config['whisper_model']}.bin -t #{@config['whisper_threads']} --file #{wav_file}"
   transcribed_text, _, _ = Open3.capture3(command)
   return transcribed_text
 end
