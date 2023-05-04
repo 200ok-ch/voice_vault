@@ -28,21 +28,8 @@ def get_sources(sources)
 end
 
 def capture_audio(wav_file, input_source, monitor_source)
-  command = "ffmpeg -f pulse -ac 2 -ar 16000 -i #{input_source} -f pulse -ac 2 -ar 16000 -i #{monitor_source} -filter_complex\ \"[0:a][1:a]amerge=inputs=2[a]\" -map \"[a]\" -ac 2 #{wav_file}"
-  # Putting ffmpeg in a separate thread, so that it can be quit with
-  # Ctrl-c at any time without ending the Ruby script or throwing error
-  # messages.
-  begin
-    puts "Capturing audio to #{wav_file}...\n"
-    stdin, stdout, stderr, _ = Open3.popen3(command)
-    stdin.close
-    stdout.read.chomp
-    stderr.read.chomp
-    stdout.close
-    stderr.close
-  rescue SystemExit, Interrupt
-
-  end
+  puts "Capturing audio to #{wav_file}. Press 'q' to quit."
+  `ffmpeg -loglevel quiet -f pulse -ac 2 -ar 16000 -i #{input_source} -f pulse -ac 2 -ar 16000 -i #{monitor_source} -filter_complex\ \"[0:a][1:a]amerge=inputs=2[a]\" -map \"[a]\" -ac 2 #{wav_file}`
 end
 
 def transcribe_to_text(wav_file)
