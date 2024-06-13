@@ -11,19 +11,8 @@ require 'yaml'
 end
 
 def get_sources(sources)
-  input_source = ''
-  monitor_source = ''
-  sources.each_line do |line|
-    tokens = line.split("\t")
-    source = tokens[1]
-    if source.include?('analog-stereo.echo-cancel')
-      if source.start_with?('alsa_input')
-        input_source = source
-      elsif source.start_with?('alsa_output')
-        monitor_source = source
-      end
-    end
-  end
+  input_source = `pactl info | grep 'Default Source' | cut -d: -f 2`.strip
+  monitor_source =  `pactl info | grep 'Default Sink' | cut -d: -f 2`.strip + ".monitor"
   return input_source, monitor_source
 end
 
@@ -55,6 +44,7 @@ end
 
 sources = `pactl list short sources`
 input_source, monitor_source = get_sources(sources)
+puts input_source, monitor_source
 wav_file = `mktemp --dry-run --suffix=.wav`.strip
 capture_audio(wav_file, input_source, monitor_source)
 transcribed_text = transcribe_to_text(wav_file)
