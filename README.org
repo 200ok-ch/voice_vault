@@ -44,6 +44,28 @@ Run the script with the required options:
 ./replicate.rb --file_url <FILE_URL> --archive_path <ARCHIVE_PATH>
 #+end_example
 
+
+If you have a machine with a sufficiently strong GPU, you could also
+run the same on your own hardware:
+
+#+begin_example
+docker run -d -p 5000:5000 --gpus=all r8.im/thomasmol/whisper-diarization@sha256:b9fd8313c0d492bf1ce501b3d188f945389327730773ec1deb6ef233df6ea119
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -d $'{
+    "input": {
+      "file": "https://replicate.delivery/pbxt/JcL0ttZLlbchC0tL9ZtB20phzeXCSuMm0EJNdLYElgILoZci/AI%20should%20be%20open-sourced.mp3",
+      "prompt": "Mark and Lex talking about AI.",
+      "file_url": "",
+      "num_speakers": 2,
+      "group_segments": true,
+      "offset_seconds": 0,
+      "transcript_output_format": "both"
+    }
+  }' \
+  http://localhost:5000/predictions
+#+end_example
+
 *** Workflows
 
 **** Record and transcribe locally
