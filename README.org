@@ -17,6 +17,8 @@ archived in sub-folders with this =YYYY-MM-DD_HH-MM-SS= schema.
 
 ** Usage
 
+*** voice_vault
+
 Simply run the script: =./voice_vault.rb=
 
 The script will capture audio from the default input and output
@@ -31,6 +33,45 @@ archive folder. The folder name will be in the format
 ./2023-04-19_19-00-55/recording.mp3
 #+end_example
 
+*** replicate
+
+This uses https://replicate.com/thomasmol/whisper-diarization to
+transcribe and diarize an audio file using Replicate's API.
+
+Run the script with the required options:
+
+#+begin_example
+./replicate.rb --file_url <FILE_URL> --archive_path <ARCHIVE_PATH>
+#+end_example
+
+*** Workflows
+
+**** Record and transcribe locally
+
+Use voice_vault only.
+
+**** Record locally and transcribe + diarize remotely
+
+Capture and process audio:
+
+#+begin_example
+./voice_vault.rb --no-transcription
+# create a public url, for example with `dropbox sharelink`
+./replicate.rb --file_url <path-to-wav-file> --archive_path <archive-directory>
+#+end_example
+
+
+This will create:
+
+#+begin_example
+~/recordings/ find . | head -n 4
+.
+./2023-04-19_19-00-55
+./2023-04-19_19-00-55/recording.mp3
+./2023-04-19_19-00-55/result_cleaned.json
+./2023-04-19_19-00-55/result.json
+#+end_example
+
 
 ** Configuration
 
@@ -40,3 +81,4 @@ The =config.yml= file contains the following settings:
 - =whisper_model=: the name of the model to use for speech recognition
 - =whisper_threads=: the number of threads whisper.cpp will use
 - =archive_path=: the path to the base directory where the MP3 and text files will be saved
+- =replicate_api_token=: your API token for accessing Replicate
