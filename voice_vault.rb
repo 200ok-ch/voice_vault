@@ -55,21 +55,16 @@ def diarization_enabled?
 end
 
 def remote_form_fields(wav_file)
-  fields = [['file', File.open(wav_file, 'rb')], ['model', @config['whisper_model']]]
-
   if diarization_enabled?
-    fields << ['diarize', 'true']
-    fields << ['response_format', 'json']
-    fields << ['output_format', 'json']
+    return diarization_form_fields(wav_file)
   end
+
+  fields = [['file', File.open(wav_file, 'rb')], ['model', @config['whisper_model']]]
 
   {
     'whisper_language' => 'language',
     'whisper_prompt' => 'prompt',
-    'whisper_hotwords' => 'hotwords',
-    'whisper_num_speakers' => 'num_speakers',
-    'whisper_min_speakers' => 'min_speakers',
-    'whisper_max_speakers' => 'max_speakers'
+    'whisper_hotwords' => 'hotwords'
   }.each do |config_key, field_name|
     value = @config[config_key]
     fields << [field_name, value.to_s] unless value.nil? || value.to_s.empty?
@@ -78,9 +73,50 @@ def remote_form_fields(wav_file)
   fields
 end
 
+def diarization_form_fields(wav_file)
+  fields = [['audio_file', File.open(wav_file, 'rb')], ['model', @config['whisper_model']]]
+
+  {
+    'whisper_language' => 'language',
+    'whisper_prompt' => 'initial_prompt',
+    'whisper_hotwords' => 'hotwords'
+  }.each do |config_key, field_name|
+    value = @config[config_key]
+    fields << [field_name, value.to_s] unless value.nil? || value.to_s.empty?
+  end
+
+  fields
+end
+
+def remote_query_params
+  return {} unless diarization_enabled?
+
+  query_params = { 'diarize' => 'true', 'output_format' => 'json' }
+
+  {
+    'whisper_num_speakers' => 'num_speakers',
+    'whisper_min_speakers' => 'min_speakers',
+    'whisper_max_speakers' => 'max_speakers'
+  }.each do |config_key, field_name|
+    value = @config[config_key]
+    next if value.nil? || value.to_s.empty?
+
+    query_params[field_name] = value.to_s
+  end
+
+  query_params
+end
+
+def segment_speaker(segment)
+  segment['speaker'] || segment[:speaker]
+end
+
+def segments_have_speakers?(segments)
+  segments.any? { |segment| !segment_speaker(segment).to_s.empty? }
+end
+
 def stringify_segment_speaker(segment)
-  return segment['speaker'] if segment['speaker']
-  return segment[:speaker] if segment[:speaker]
+  return segment_speaker(segment) if segment_speaker(segment)
 
   'UNKNOWN'
 end
@@ -89,10 +125,32 @@ def stringify_segment_text(segment)
   segment['text'] || segment[:text] || ''
 end
 
+def segment_timestamp(segment)
+  start_time = segment['start'] || segment[:start]
+  end_time = segment['end'] || segment[:end]
+  return nil if start_time.nil? || end_time.nil?
+
+  "[#{format_timestamp(start_time)}-#{format_timestamp(end_time)}]"
+end
+
+def format_timestamp(total_seconds)
+  total_seconds = total_seconds.to_f
+  hours = (total_seconds / 3600).floor
+  minutes = ((total_seconds % 3600) / 60).floor
+  seconds = (total_seconds % 60).floor
+  format('%02d:%02d:%02d', hours, minutes, seconds)
+end
+
 def render_diarized_text(segments)
+  return segments.map { |segment| render_segment_text(segment) }.join("\n") unless segments_have_speakers?(segments)
+
   segments.map do |segment|
-    "[#{stringify_segment_speaker(segment)}] #{stringify_segment_text(segment).strip}"
+    [segment_timestamp(segment), "[#{stringify_segment_speaker(segment)}]", stringify_segment_text(segment).strip].compact.join(' ')
   end.join("\n")
+end
+
+def render_segment_text(segment)
+  [segment_timestamp(segment), stringify_segment_text(segment).strip].compact.join(' ')
 end
 
 def extract_remote_transcription_text(payload)
@@ -119,7 +177,11 @@ def transcribe_locally(wav_file)
 end
 
 def remote_transcription_uri
-  URI("#{@config['whisper_base_url'].sub(%r{/*$}, '')}/v1/audio/transcriptions")
+  path = diarization_enabled? ? '/asr' : '/v1/audio/transcriptions'
+  uri = URI("#{@config['whisper_base_url'].sub(%r{/*$}, '')}#{path}")
+  query_params = remote_query_params
+  uri.query = URI.encode_www_form(query_params) unless query_params.empty?
+  uri
 end
 
 def whisper_open_timeout
