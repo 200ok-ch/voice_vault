@@ -6,8 +6,11 @@ speed using full-text search.
 
 =voice_vault= is a Ruby program that captures audio from the default
 input and output sources using [[https://ffmpeg.org/][FFmpeg]] and then transcribes it to text
-using [[https://github.com/ggerganov/whisper.cpp][whisper.cpp]]. Both the audio (mp3) and transcription will be
-archived in sub-folders with this =YYYY-MM-DD_HH-MM-SS= schema.
+using either local [[https://github.com/ggerganov/whisper.cpp][whisper.cpp]] or a remote OpenAI-compatible
+Whisper API. When the remote server supports diarization, =voice_vault=
+can also archive speaker-labeled output and the raw JSON response.
+Both the audio (mp3) and transcription will be archived in sub-folders
+with this =YYYY-MM-DD_HH-MM-SS= schema.
 
 ** Installation
 
@@ -17,7 +20,15 @@ archived in sub-folders with this =YYYY-MM-DD_HH-MM-SS= schema.
 
 ** Usage
 
+*** voice_vault
+
 Simply run the script: =./voice_vault.rb=
+
+To transcribe an existing audio file instead of recording live audio:
+
+#+begin_example
+./voice_vault.rb --file meeting.mp3
+#+end_example
 
 The script will capture audio from the default input and output
 sources, transcribe it to text, encode it to MP3, and save it to an
@@ -31,12 +42,121 @@ archive folder. The folder name will be in the format
 ./2023-04-19_19-00-55/recording.mp3
 #+end_example
 
+*** replicate
+
+This uses https://replicate.com/thomasmol/whisper-diarization to
+transcribe and diarize an audio file using Replicate's API.
+
+Run the script with the required options:
+
+#+begin_example
+./replicate.rb --file_url <FILE_URL> --archive_path <ARCHIVE_PATH>
+#+end_example
+
+
+If you have a machine with a sufficiently strong GPU, you could also
+run the same on your own hardware:
+
+#+begin_example
+docker run -d -p 5000:5000 --gpus=all r8.im/thomasmol/whisper-diarization@sha256:b9fd8313c0d492bf1ce501b3d188f945389327730773ec1deb6ef233df6ea119
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -d $'{
+    "input": {
+      "file": "https://replicate.delivery/pbxt/JcL0ttZLlbchC0tL9ZtB20phzeXCSuMm0EJNdLYElgILoZci/AI%20should%20be%20open-sourced.mp3",
+      "prompt": "Mark and Lex talking about AI.",
+      "file_url": "",
+      "num_speakers": 2,
+      "group_segments": true,
+      "offset_seconds": 0,
+      "transcript_output_format": "both"
+    }
+  }' \
+  http://localhost:5000/predictions
+#+end_example
+
+*** Workflows
+
+**** Record and transcribe locally
+
+Use voice_vault only.
+
+**** Record locally and transcribe + diarize remotely
+
+Capture and process audio:
+
+#+begin_example
+./voice_vault.rb --no-transcription
+# create a public url, for example with `dropbox sharelink`
+./replicate.rb --file_url <path-to-wav-file> --archive_path <archive-directory>
+#+end_example
+
+
+This will create:
+
+#+begin_example
+~/recordings/ find . | head -n 4
+.
+./2023-04-19_19-00-55
+./2023-04-19_19-00-55/recording.mp3
+./2023-04-19_19-00-55/result_cleaned.json
+./2023-04-19_19-00-55/result.json
+#+end_example
+
 
 ** Configuration
 
 The =config.yml= file contains the following settings:
 
+- =whisper_provider=: =local= (default) or =remote=
 - =whisper_path=: the path to the directory containing whisper.cpp
+- =whisper_base_url=: the base URL of an OpenAI-compatible Whisper server, for example =https://whisper.example.com=
+- =whisper_api_token=: bearer token for the remote Whisper server
 - =whisper_model=: the name of the model to use for speech recognition
+- =whisper_diarize=: set to =true= to request diarization from remote services that support it
+- =whisper_num_speakers=: exact speaker count for remote diarization
+- =whisper_min_speakers=: lower bound for remote diarization
+- =whisper_max_speakers=: upper bound for remote diarization
+- =whisper_language=: optional language code for remote transcription
+- =whisper_prompt=: optional prompt for remote transcription
+- =whisper_hotwords=: optional comma-separated hotwords for remote transcription
+- =whisper_open_timeout=: remote HTTP connect timeout in seconds
+- =whisper_read_timeout=: remote HTTP read timeout in seconds
+- =whisper_write_timeout=: remote HTTP upload timeout in seconds
 - =whisper_threads=: the number of threads whisper.cpp will use
 - =archive_path=: the path to the base directory where the MP3 and text files will be saved
+- =replicate_api_token=: your API token for accessing Replicate
+
+Example local configuration:
+
+#+begin_example
+archive_path: ~/recordings
+whisper_provider: local
+whisper_path: ~/src/whisper.cpp
+whisper_model: small
+whisper_threads: 4
+replicate_api_token: your_replicate_token
+#+end_example
+
+Example remote configuration:
+
+#+begin_example
+archive_path: ~/recordings
+whisper_provider: remote
+whisper_base_url: https://whisper.example.com
+whisper_api_token: your_whisper_api_token
+whisper_model: medium
+whisper_diarize: true
+whisper_min_speakers: 2
+whisper_max_speakers: 5
+whisper_open_timeout: 30
+whisper_read_timeout: 3600
+whisper_write_timeout: 300
+replicate_api_token: your_replicate_token
+#+end_example
+
+In remote mode, =voice_vault= sends the recorded WAV file to
+=/v1/audio/transcriptions= using the configured bearer token and model.
+When diarization is enabled, the response is also saved as
+=result.json= and the diarized segments are saved as =result_cleaned.json=.
+You can inspect the available remote models with =curl <base-url>/v1/models=.
