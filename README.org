@@ -157,6 +157,13 @@ replicate_api_token: your_replicate_token
 
 In remote mode, =voice_vault= sends the recorded WAV file to
 =/v1/audio/transcriptions= using the configured bearer token and model.
+For the WhisperX setup used in this project, =voice_vault= switches to
+=/asr?diarize=true&output_format=json= when =whisper_diarize: true=,
+because this is the endpoint that actually returns speaker labels.
+This project uses the [[https://github.com/murtaza-nasir/whisperx-asr-service][whisperx-asr-service]] server behind a bearer-auth
+proxy for diarized remote transcription.
+The OpenAI-compatible =/v1/audio/transcriptions= endpoint is still used
+for non-diarized remote transcription.
 When diarization is enabled, the response is also saved as
 =result.json= and the diarized segments are saved as =result_cleaned.json=.
 You can inspect the available remote models with =curl <base-url>/v1/models=.
