@@ -24,7 +24,10 @@ def whisper_provider
   'local'
 end
 
-def validate_config!
+def validate_config!(require_transcription: true)
+  abort 'Missing archive_path' if @config['archive_path'].to_s.empty?
+  return unless require_transcription
+
   case whisper_provider
   when 'local'
     abort 'Missing whisper_path for local whisper provider' if @config['whisper_path'].to_s.empty?
@@ -35,8 +38,6 @@ def validate_config!
   else
     abort "Unsupported whisper_provider: #{whisper_provider}"
   end
-
-  abort 'Missing archive_path' if @config['archive_path'].to_s.empty?
 end
 
 def get_sources(sources)
@@ -241,8 +242,12 @@ def transcribe_remotely(wav_file)
     return({ text: transcription_text, payload: payload }) if response.is_a?(Net::HTTPSuccess) && transcription_text
 
     abort "Remote whisper transcription failed: #{remote_error_message(response, payload)}"
-  rescue Net::OpenTimeout, Net::ReadTimeout => e
+  rescue Net::OpenTimeout => e
+    abort "Remote whisper transcription timed out after #{whisper_open_timeout}s open timeout. Increase whisper_open_timeout in config if the server is slow to accept connections. Original error: #{e.class}"
+  rescue Net::ReadTimeout => e
     abort "Remote whisper transcription timed out after #{whisper_read_timeout}s read timeout. Increase whisper_read_timeout in config if long files need more time. Original error: #{e.class}"
+  rescue Net::WriteTimeout => e
+    abort "Remote whisper transcription timed out after #{whisper_write_timeout}s write timeout. Increase whisper_write_timeout in config if large uploads need more time. Original error: #{e.class}"
   ensure
     form_fields.each do |field|
       field[1].close if field[1].respond_to?(:close)
@@ -334,7 +339,7 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-validate_config!
+validate_config!(require_transcription: !options[:no_transcription])
 
 folder = "#{@config['archive_path']}/#{DateTime.now.strftime('%Y-%m-%d_%H-%M-%S')}"
 
