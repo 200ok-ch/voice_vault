@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 - 2026-07-15
+
+### Fixed
+
+- Explicitly enable FFmpeg standard-input interaction so pressing `q`
+  reliably stops and finalizes live recordings.
+
 ## 1.0.0 - 2026-07-15
 
 First versioned release.

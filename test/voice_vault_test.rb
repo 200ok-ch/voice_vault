@@ -470,6 +470,7 @@ class VoiceVaultTest < Minitest::Test
     assert_equal ["pactl", "get-default-source"], runner.captured_commands.fetch(0)
     assert_equal ["pactl", "get-default-sink"], runner.captured_commands.fetch(1)
     capture_command = runner.interactive_commands.fetch(0)
+    assert_includes capture_command, "-stdin"
     assert_includes capture_command, "test-microphone"
     assert_includes capture_command, "test-speakers.monitor"
   end
@@ -484,6 +485,7 @@ class VoiceVaultTest < Minitest::Test
     assert_equal ["pactl", "get-default-sink"], runner.captured_commands.fetch(2)
     assert_equal ["pactl", "info"], runner.captured_commands.fetch(3)
     capture_command = runner.interactive_commands.fetch(0)
+    assert_includes capture_command, "-stdin"
     assert_includes capture_command, "legacy-microphone"
     assert_includes capture_command, "legacy-speakers.monitor"
   end
@@ -586,7 +588,7 @@ class VoiceVaultTest < Minitest::Test
     status = VoiceVault::CLI.run(["--version"], stdout: stdout, stderr: stderr)
 
     assert_equal 0, status
-    assert_equal "voice_vault 1.0.0\n", stdout.string
+    assert_equal "voice_vault 1.0.1\n", stdout.string
     assert_empty stderr.string
   end
 

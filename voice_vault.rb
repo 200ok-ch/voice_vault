@@ -12,7 +12,7 @@ require "uri"
 require "yaml"
 
 module VoiceVault
-  VERSION = "1.0.0"
+  VERSION = "1.0.1"
   DEFAULT_CONFIG_PATH = File.expand_path("~/.config/voice_vault/config.yml")
 
   class Error < StandardError; end
@@ -448,7 +448,7 @@ module VoiceVault
 
       @stdout.puts "Capturing audio. Press 'q' to stop."
       @runner.interactive(
-        "ffmpeg", "-hide_banner", "-loglevel", "error",
+        "ffmpeg", "-stdin", "-hide_banner", "-loglevel", "error",
         "-f", "pulse", "-ac", "2", "-ar", "16000", "-i", input_source,
         "-f", "pulse", "-ac", "2", "-ar", "16000", "-i", monitor_source,
         "-filter_complex", "[0:a][1:a]amerge=inputs=2[a]",
