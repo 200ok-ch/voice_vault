@@ -358,7 +358,7 @@ end
 if options[:no_transcription]
   save_files(folder, mp3_file, wav_file)
 else
-  transcription_result = transcribe_to_text(wav_file)
+  transcription_result = transcribe_to_text(mp3_file)
   save_files(folder, mp3_file, wav_file, transcription_result)
 end
 

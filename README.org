@@ -155,7 +155,7 @@ whisper_write_timeout: 300
 replicate_api_token: your_replicate_token
 #+end_example
 
-In remote mode, =voice_vault= sends the recorded WAV file to
+In remote mode, =voice_vault= sends the compressed MP3 file to
 =/v1/audio/transcriptions= using the configured bearer token and model.
 For the WhisperX setup used in this project, =voice_vault= switches to
 =/asr?diarize=true&output_format=json= when =whisper_diarize: true=,
