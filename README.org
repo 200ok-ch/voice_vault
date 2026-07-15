@@ -1,150 +1,183 @@
-* voice_vault
+* Voice Vault
 
-=voice_vault= enables you to record and archive all your meetings and
-conversations with ease. Later, search through them with lightning
-speed using full-text search.
+=voice_vault= records microphone and system audio, archives it as MP3,
+and optionally transcribes it. Existing audio and video files can be
+imported as well.
 
-=voice_vault= is a Ruby program that captures audio from the default
-input and output sources using [[https://ffmpeg.org/][FFmpeg]] and then transcribes it to text
-using either local [[https://github.com/ggerganov/whisper.cpp][whisper.cpp]] or a remote OpenAI-compatible
-Whisper API. When the remote server supports diarization, =voice_vault=
-can also archive speaker-labeled output and the raw JSON response.
-Both the audio (mp3) and transcription will be archived in sub-folders
-with this =YYYY-MM-DD_HH-MM-SS= schema.
+The recommended transcription provider is the standalone
+[[https://github.com/200ok-ch/transcribe][transcribe]] command, which uses WhisperX and supports speaker
+diarization. Existing local whisper.cpp and remote Whisper configurations
+remain supported.
+
+Each recording is stored in a private timestamped directory:
+
+#+begin_example
+~/recordings/2026-07-15_10-30-00/
+├── recording.mp3
+└── transcription.txt
+#+end_example
+
+If two recordings start in the same second, later directories receive a
+numeric suffix such as =_2=.
+
+** Requirements
+
+- All workflows require Ruby 2.7 or newer.
+- Live recording requires =pactl= and FFmpeg with PulseAudio support.
+  Voice Vault uses the modern =get-default-*= commands when available and
+  falls back to =pactl info= on older PulseAudio versions.
+- Importing anything other than an MP3 requires FFmpeg. Local whisper.cpp
+  transcription also requires FFmpeg to normalize every input, including
+  MP3 files, to PCM WAV.
+- The recommended provider requires =transcribe= on =$PATH=.
+- The local provider requires a whisper.cpp checkout and model.
+- The remote provider requires an OpenAI-compatible Whisper service.
 
 ** Installation
 
--  Clone the repository
--  Configure the program by editing the config.yml file in the =~/.config/voice_vault/= directory.
--  Make the script executable: chmod +x voice_vault.rb
+Clone Voice Vault and make its executable available:
+
+#+begin_src sh
+git clone https://github.com/200ok-ch/voice_vault.git
+cd voice_vault
+chmod +x voice_vault.rb
+#+end_src
+
+For the recommended provider, install =transcribe= on =$PATH=:
+
+#+begin_src sh
+cd ..
+git clone https://github.com/200ok-ch/transcribe.git
+cd transcribe
+make install PREFIX="$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"
+cd ../voice_vault
+#+end_src
+
+Add the =export= line to =~/.profile= or the appropriate shell startup
+file so new terminals and desktop-launched sessions inherit it. Verify the
+installation before continuing:
+
+#+begin_src sh
+command -v transcribe
+transcribe --version
+#+end_src
+
+Then configure =transcribe= according to its README. It stores its
+WhisperX endpoint and bearer token in a SOPS-encrypted configuration file.
+
+Create Voice Vault's private configuration before the first run:
+
+#+begin_src sh
+install -d -m 700 ~/.config/voice_vault
+install -m 600 /dev/null ~/.config/voice_vault/config.yml
+${EDITOR:-vi} ~/.config/voice_vault/config.yml
+#+end_src
+
+For the recommended provider, enter:
+
+#+begin_src yaml
+archive_path: ~/recordings
+whisper_provider: transcribe
+whisper_diarize: true
+#+end_src
 
 ** Usage
 
-*** voice_vault
+Record the default PulseAudio source and default sink monitor. Press =q=
+in FFmpeg to stop:
 
-Simply run the script: =./voice_vault.rb=
+#+begin_src sh
+./voice_vault.rb
+#+end_src
 
-To transcribe an existing audio file instead of recording live audio:
+Import an existing audio or video file:
 
-#+begin_example
+#+begin_src sh
 ./voice_vault.rb --file meeting.mp3
-#+end_example
+#+end_src
 
-The script will capture audio from the default input and output
-sources, transcribe it to text, encode it to MP3, and save it to an
-archive folder. The folder name will be in the format
+Archive audio without transcription:
 
-#+begin_example
-~/Dropbox/recordings/ find . | head -n 4
-.
-./2023-04-19_19-00-55
-./2023-04-19_19-00-55/transcription.txt
-./2023-04-19_19-00-55/recording.mp3
-#+end_example
-
-*** replicate
-
-This uses https://replicate.com/thomasmol/whisper-diarization to
-transcribe and diarize an audio file using Replicate's API.
-
-Run the script with the required options:
-
-#+begin_example
-./replicate.rb --file_url <FILE_URL> --archive_path <ARCHIVE_PATH>
-#+end_example
-
-
-If you have a machine with a sufficiently strong GPU, you could also
-run the same on your own hardware:
-
-#+begin_example
-docker run -d -p 5000:5000 --gpus=all r8.im/thomasmol/whisper-diarization@sha256:b9fd8313c0d492bf1ce501b3d188f945389327730773ec1deb6ef233df6ea119
-curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -d $'{
-    "input": {
-      "file": "https://replicate.delivery/pbxt/JcL0ttZLlbchC0tL9ZtB20phzeXCSuMm0EJNdLYElgILoZci/AI%20should%20be%20open-sourced.mp3",
-      "prompt": "Mark and Lex talking about AI.",
-      "file_url": "",
-      "num_speakers": 2,
-      "group_segments": true,
-      "offset_seconds": 0,
-      "transcript_output_format": "both"
-    }
-  }' \
-  http://localhost:5000/predictions
-#+end_example
-
-*** Workflows
-
-**** Record and transcribe locally
-
-Use voice_vault only.
-
-**** Record locally and transcribe + diarize remotely
-
-Capture and process audio:
-
-#+begin_example
+#+begin_src sh
 ./voice_vault.rb --no-transcription
-# create a public url, for example with `dropbox sharelink`
-./replicate.rb --file_url <path-to-wav-file> --archive_path <archive-directory>
-#+end_example
+./voice_vault.rb --file meeting.mkv --no-transcription
+#+end_src
 
-
-This will create:
-
-#+begin_example
-~/recordings/ find . | head -n 4
-.
-./2023-04-19_19-00-55
-./2023-04-19_19-00-55/recording.mp3
-./2023-04-19_19-00-55/result_cleaned.json
-./2023-04-19_19-00-55/result.json
-#+end_example
-
+Run =./voice_vault.rb --help= for all options.
 
 ** Configuration
 
-The =config.yml= file contains the following settings:
+Voice Vault reads =~/.config/voice_vault/config.yml=. Every provider
+requires an archive root:
 
-- =whisper_provider=: =local= (default) or =remote=
-- =whisper_path=: the path to the directory containing whisper.cpp
-- =whisper_base_url=: the base URL of an OpenAI-compatible Whisper server, for example =https://whisper.example.com=
-- =whisper_api_token=: bearer token for the remote Whisper server
-- =whisper_model=: the name of the model to use for speech recognition
-- =whisper_diarize=: set to =true= to request diarization from remote services that support it
-- =whisper_num_speakers=: exact speaker count for remote diarization
-- =whisper_min_speakers=: lower bound for remote diarization
-- =whisper_max_speakers=: upper bound for remote diarization
-- =whisper_language=: optional language code for remote transcription
-- =whisper_prompt=: optional prompt for remote transcription
-- =whisper_hotwords=: optional comma-separated hotwords for remote transcription
-- =whisper_open_timeout=: remote HTTP connect timeout in seconds
-- =whisper_read_timeout=: remote HTTP read timeout in seconds
-- =whisper_write_timeout=: remote HTTP upload timeout in seconds
-- =whisper_threads=: the number of threads whisper.cpp will use
-- =archive_path=: the path to the base directory where the MP3 and text files will be saved
-- =replicate_api_token=: your API token for accessing Replicate
+#+begin_src yaml
+archive_path: ~/recordings
+#+end_src
 
-Example local configuration:
+Use =--config PATH= to load another file.
+
+*** Recommended: transcribe
+
+The =transcribe= provider invokes the =transcribe= executable found on
+=$PATH=. Diarization is enabled by default for this provider:
+
+#+begin_src yaml
+archive_path: ~/recordings
+whisper_provider: transcribe
+whisper_diarize: true
+#+end_src
+
+The following existing Voice Vault settings are forwarded when present:
+
+- =whisper_model=
+- =whisper_language=
+- =whisper_num_speakers=
+- =whisper_min_speakers=
+- =whisper_max_speakers=
+- =whisper_read_timeout=
+
+Set =whisper_diarize: false= to request a plain transcript. Credentials
+and the WhisperX endpoint remain owned by =transcribe=, not Voice Vault.
+Speaker counts are forwarded only when diarization is enabled. An exact
+=whisper_num_speakers= cannot be combined with the minimum or maximum
+bounds, and the minimum cannot exceed the maximum.
+
+A diarized =transcription.txt= groups consecutive segments into speaker
+turns without timestamps:
 
 #+begin_example
+SPEAKER_00: Welcome. Let's get started.
+
+SPEAKER_01: Thanks. The first topic is...
+#+end_example
+
+*** Local whisper.cpp
+
+Existing local configurations continue to work:
+
+#+begin_src yaml
 archive_path: ~/recordings
 whisper_provider: local
 whisper_path: ~/src/whisper.cpp
 whisper_model: small
 whisper_threads: 4
-replicate_api_token: your_replicate_token
-#+end_example
+#+end_src
 
-Example remote configuration:
+The historical =main= path, a root-level =whisper-cli=, and the current
+=build/bin/whisper-cli= build location are supported. Voice Vault passes a
+normalized 16 kHz PCM WAV with automatic language detection to whisper.cpp
+and archives the MP3.
 
-#+begin_example
+*** Remote Whisper API
+
+Existing remote configurations also continue to work:
+
+#+begin_src yaml
 archive_path: ~/recordings
 whisper_provider: remote
 whisper_base_url: https://whisper.example.com
-whisper_api_token: your_whisper_api_token
+whisper_api_token: your-token
 whisper_model: medium
 whisper_diarize: true
 whisper_min_speakers: 2
@@ -152,18 +185,101 @@ whisper_max_speakers: 5
 whisper_open_timeout: 30
 whisper_read_timeout: 3600
 whisper_write_timeout: 300
-replicate_api_token: your_replicate_token
-#+end_example
+#+end_src
 
-In remote mode, =voice_vault= sends the compressed MP3 file to
-=/v1/audio/transcriptions= using the configured bearer token and model.
-For the WhisperX setup used in this project, =voice_vault= switches to
-=/asr?diarize=true&output_format=json= when =whisper_diarize: true=,
-because this is the endpoint that actually returns speaker labels.
-This project uses the [[https://github.com/murtaza-nasir/whisperx-asr-service][whisperx-asr-service]] server behind a bearer-auth
-proxy for diarized remote transcription.
-The OpenAI-compatible =/v1/audio/transcriptions= endpoint is still used
-for non-diarized remote transcription.
-When diarization is enabled, the response is also saved as
-=result.json= and the diarized segments are saved as =result_cleaned.json=.
-You can inspect the available remote models with =curl <base-url>/v1/models=.
+Plain transcription uses =/v1/audio/transcriptions=. Diarization uses the
+native WhisperX =/asr= endpoint. Structured responses are retained as
+=result.json= and segment arrays as =result_cleaned.json=.
+
+Optional remote fields remain supported:
+
+- =whisper_language=
+- =whisper_prompt=
+- =whisper_hotwords=
+- =whisper_num_speakers=
+- =whisper_min_speakers=
+- =whisper_max_speakers=
+
+Speaker-count fields affect only diarized requests. Use either an exact
+count or minimum/maximum bounds, not both styles together.
+
+For compatibility, omitting =whisper_provider= still selects =remote=
+when =whisper_base_url= exists and =local= otherwise.
+
+** Workflow Matrix
+
+| Provider     | Processing | Diarization | Structured JSON | Status      |
+|--------------+------------+--------------+-----------------+-------------|
+| =transcribe= | Remote     | Yes          | No              | Recommended |
+| =local=      | Local      | No           | No              | Supported   |
+| =remote=     | Remote     | Optional     | Yes             | Supported   |
+| Replicate command | Remote | Yes        | Yes             | Deprecated  |
+
+Replicate is a separate command and is not a valid =whisper_provider=
+value.
+
+** Failure Behavior
+
+Voice Vault moves =recording.mp3= into its archive before transcription.
+If a provider fails, Voice Vault exits unsuccessfully, removes incomplete
+transcription artifacts, and reports the retained recording path. This
+allows transcription to be retried without losing audio.
+
+Recording and transcript files use owner-only permissions. Imported source
+files are never modified or removed.
+
+** Replicate Compatibility
+
+=replicate.rb= remains available for existing workflows but is deprecated.
+It still accepts the original options:
+
+#+begin_src sh
+./replicate.rb \
+  --file_url https://example.com/meeting.mp3 \
+  --archive_path ~/recordings/2026-07-15_10-30-00
+#+end_src
+
+The =replicate_api_token= key remains supported in Voice Vault's config.
+New setups should use the =transcribe= provider instead. For compatibility,
+=result_cleaned.json= remains a stream of JSON segment objects. A new
+=result_segments.json= contains the same cleaned segments as one valid JSON
+array. Failures now return a nonzero exit status.
+
+** Migration To 1.0
+
+- Existing local and remote configuration files require no changes.
+- Existing CLI commands and =--no-transcription= behavior are preserved.
+- Existing remote JSON and timestamped transcript artifacts are preserved.
+- To adopt WhisperX through =transcribe=, install it on =$PATH= and set
+  =whisper_provider: transcribe=.
+- =replicate.rb= is deprecated but has not been removed.
+- Archive directories now avoid timestamp collisions and preserve audio
+  when transcription fails.
+- Voice Vault 1.0 is tested with =transcribe= 1.0. Check versions with
+  =./voice_vault.rb --version= and =transcribe --version=.
+
+See =CHANGELOG.md= for the complete release notes.
+
+** Privacy
+
+Meeting audio and transcripts can contain sensitive information. The
+=transcribe=, =remote=, and Replicate workflows upload audio to configured
+services. Review those services' access controls and retention policies.
+Use the local provider when audio must remain on the recording machine.
+
+The legacy remote provider accepts plain HTTP for compatibility and does
+not protect bearer tokens or audio in transit. Use HTTPS whenever traffic
+leaves a trusted local environment. Keep
+=~/.config/voice_vault/config.yml= mode =0600= because it may contain remote
+or Replicate API tokens.
+
+Replicate requires a URL reachable by Replicate's service. Anyone who can
+access that URL may be able to retrieve the recording; use a short-lived,
+access-controlled link and revoke it after processing.
+
+** Tests
+
+#+begin_src sh
+ruby test/voice_vault_test.rb
+ruby test/replicate_test.rb
+#+end_src

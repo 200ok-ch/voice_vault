@@ -13,5 +13,6 @@
   (inferior-for-channels channels))
 
 (packages->manifest
- (list (first (lookup-inferior-packages inferior "node"))
-       (specification->package "ffmpeg@5.1.2")))
+ (map (lambda (name)
+        (first (lookup-inferior-packages inferior name)))
+      '("ruby" "ffmpeg" "pulseaudio")))
